@@ -78,7 +78,7 @@ const VibeSelectionScreen: React.FC<VibeSelectionScreenProps> = ({ onGenerate, i
                     onClick={onSkip}
                     className="text-gray-500 hover:text-cyan-400 font-semibold transition-colors group"
                 >
-                    Skip and use my Spotify playlists <span className="inline-block transition-transform group-hover:translate-x-1">&rarr;</span>
+                    Use sample playlists instead <span className="inline-block transition-transform group-hover:translate-x-1">&rarr;</span>
                 </button>
             </div>
           </>

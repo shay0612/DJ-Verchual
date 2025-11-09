@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { Song, DjTransitionResponse, SpotifyPlaylist } from '../types.ts';
 import { SOUND_EFFECTS, MOCK_SPOTIFY_PLAYLISTS } from '../constants.tsx';
@@ -64,7 +63,6 @@ export const generatePlaylistsFromVibe = async (vibe: string): Promise<SpotifyPl
           id: `gemini-song-${pIndex}-${sIndex}-${Date.now()}`,
           albumArt: `https://picsum.photos/seed/${encodeURIComponent(song.title)}/300`,
           duration: Math.floor(Math.random() * (240 - 180 + 1)) + 180, // Random duration 3:00-4:00
-          // FIX: Add missing audioUrl property to satisfy the Song interface.
           audioUrl: 'https://cdn.pixabay.com/download/audio/2023/05/18/audio_b88b773643.mp3',
         }))
       }));
@@ -75,6 +73,82 @@ export const generatePlaylistsFromVibe = async (vibe: string): Promise<SpotifyPl
       return MOCK_SPOTIFY_PLAYLISTS;
     }
 };
+
+export const generatePlaylistFromUserInput = async (userInput: string): Promise<SpotifyPlaylist | null> => {
+    try {
+        const isSpotifyUrl = /open\.spotify\.com\/playlist\//.test(userInput);
+
+        const prompt = isSpotifyUrl
+            ? `You are a music data parsing expert. The user has provided the following Spotify playlist URL: "${userInput}".
+            Since you cannot access external URLs, you must infer the likely theme, genre, and style of this playlist.
+            Your task is to generate a plausible and fitting list of 5 to 8 songs (title and artist) that would probably be on such a playlist.
+            Also, create a plausible and creative name for this playlist.
+            Return the result as a JSON object containing the playlist name and an array of song objects.`
+            : `You are a music data parsing expert. The user has provided the following text which contains a list of songs. 
+            Your task is to extract the song title and artist for each song. Ignore any extra text like playlist names, descriptions, track numbers, or timestamps.
+            The user-provided text is:
+            ---
+            ${userInput}
+            ---
+            Return the result as a JSON object containing a creative playlist name and an array of song objects.`;
+        
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        playlistName: {
+                            type: Type.STRING,
+                            description: "A creative name for the playlist based on the songs or URL."
+                        },
+                        songs: {
+                            type: Type.ARRAY,
+                            description: "The list of extracted/generated songs.",
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    title: { type: Type.STRING },
+                                    artist: { type: Type.STRING },
+                                },
+                                required: ['title', 'artist']
+                            }
+                        }
+                    },
+                    required: ['playlistName', 'songs']
+                }
+            }
+        });
+
+        const jsonText = response.text.trim();
+        const parsedData = JSON.parse(jsonText) as { playlistName: string, songs: { title: string, artist: string }[] };
+
+        if (!parsedData.songs || parsedData.songs.length === 0) {
+            console.warn("Gemini parsing returned no songs.");
+            return null;
+        }
+
+        const newPlaylist: SpotifyPlaylist = {
+            id: `imported-${Date.now()}`,
+            name: parsedData.playlistName,
+            songs: parsedData.songs.map((song, index) => ({
+                ...song,
+                id: `imported-song-${index}-${Date.now()}`,
+                albumArt: `https://picsum.photos/seed/${encodeURIComponent(song.title)}/300`,
+                duration: Math.floor(Math.random() * (240 - 180 + 1)) + 180,
+                audioUrl: 'https://cdn.pixabay.com/download/audio/2023/05/18/audio_b88b773643.mp3',
+            }))
+        };
+        return newPlaylist;
+
+    } catch (error) {
+        console.error("Error generating playlist from user input:", error);
+        return null;
+    }
+};
+
 
 export const getDjTransition = async (currentSong: Song, nextSong: Song): Promise<DjTransitionResponse> => {
   try {
@@ -163,7 +237,6 @@ export const getSimilarSong = async (lastSong: Song, playlist: Song[]): Promise<
       id: `gemini:${Date.now()}`,
       albumArt: `https://picsum.photos/seed/${encodeURIComponent(suggestedSong.title)}/300`,
       duration: 180, // default duration
-      // FIX: Add missing audioUrl property to satisfy the Song interface.
       audioUrl: 'https://cdn.pixabay.com/download/audio/2023/05/18/audio_b88b773643.mp3',
     };
   } catch (error) {
@@ -205,7 +278,6 @@ export const getSongFromRequest = async (request: string, playlist: Song[]): Pro
         id: `request:${Date.now()}`,
         albumArt: `https://picsum.photos/seed/${encodeURIComponent(requestedSong.title)}/300`,
         duration: 180, // default duration
-        // FIX: Add missing audioUrl property to satisfy the Song interface.
         audioUrl: 'https://cdn.pixabay.com/download/audio/2023/05/18/audio_b88b773643.mp3',
       };
     } catch (error) {

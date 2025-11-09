@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Song, MixEvent, MixEventType, SoundEffect, SpotifyPlaylist } from './types.ts';
 import { SOUND_EFFECTS, MOCK_SPOTIFY_PLAYLISTS } from './constants.tsx';
-import { getDjTransition, getSimilarSong, getSongFromRequest, getLyrics, generatePlaylistsFromVibe } from './services/geminiService.ts';
+import { getDjTransition, getSimilarSong, getSongFromRequest, getLyrics, generatePlaylistsFromVibe, generatePlaylistFromUserInput } from './services/geminiService.ts';
 
 import Header from './components/Header.tsx';
 import Deck from './components/Deck.tsx';
@@ -11,15 +11,15 @@ import SavedMixModal from './components/SavedMixModal.tsx';
 import LoginScreen from './components/LoginScreen.tsx';
 import PlaylistModal from './components/PlaylistModal.tsx';
 import LyricsModal from './components/LyricsModal.tsx';
-import SpotifyLoginModal from './components/SpotifyLoginModal.tsx';
 import VibeSelectionScreen from './components/VibeSelectionScreen.tsx';
 import AddSoundEffectModal from './components/AddSoundEffectModal.tsx';
+import ImportPlaylistModal from './components/ImportPlaylistModal.tsx';
+
 
 type AppState = 'LOGIN' | 'VIBE_SELECT' | 'DJ_BOOTH';
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>('LOGIN');
-  const [showSpotifyLogin, setShowSpotifyLogin] = useState(false);
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
   const [generatedPlaylists, setGeneratedPlaylists] = useState<SpotifyPlaylist[]>([]);
   const [playlist, setPlaylist] = useState<Song[]>([]);
@@ -37,7 +37,7 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [mixLog, setMixLog] = useState<MixEvent[]>([]);
   const [showMixModal, setShowMixModal] = useState(false);
-  const [isLoading, setIsLoading] = useState({ commentary: false, suggestion: false, request: false, lyrics: false, playlists: false });
+  const [isLoading, setIsLoading] = useState({ commentary: false, suggestion: false, request: false, lyrics: false, playlists: false, import: false });
   const [activeSoundEffect, setActiveSoundEffect] = useState<string | null>(null);
   const [playHistory, setPlayHistory] = useState<Song[]>([]);
   const [showLyricsModal, setShowLyricsModal] = useState(false);
@@ -45,6 +45,7 @@ export default function App() {
   const [lastRemovedSong, setLastRemovedSong] = useState<{ song: Song; index: number } | null>(null);
   const [uploadedMix, setUploadedMix] = useState<MixEvent[] | null>(null);
   const [showAddFxModal, setShowAddFxModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
 
   const currentSong = playlist[currentSongIndex];
@@ -465,11 +466,6 @@ export default function App() {
     }
   };
   
-  const handleLogin = () => {
-    setShowSpotifyLogin(false);
-    setAppState('VIBE_SELECT');
-  };
-  
   const handleLogout = () => {
     setIsPlaying(false);
     if (audioRef.current) {
@@ -481,7 +477,6 @@ export default function App() {
     }
 
     setAppState('LOGIN');
-    setShowSpotifyLogin(false);
     setShowPlaylistModal(false);
     setGeneratedPlaylists([]);
     setPlaylist([]);
@@ -498,7 +493,7 @@ export default function App() {
     setIsRecording(false);
     setMixLog([]);
     setShowMixModal(false);
-    setIsLoading({ commentary: false, suggestion: false, request: false, lyrics: false, playlists: false });
+    setIsLoading({ commentary: false, suggestion: false, request: false, lyrics: false, playlists: false, import: false });
     setActiveSoundEffect(null);
     setPlayHistory([]);
     setShowLyricsModal(false);
@@ -514,6 +509,17 @@ export default function App() {
     setIsLoading(prev => ({ ...prev, playlists: false }));
     setAppState('DJ_BOOTH');
     setShowPlaylistModal(true);
+  };
+
+  const handleGeneratePlaylistFromUserInput = async (text: string) => {
+    setIsLoading(prev => ({ ...prev, import: true }));
+    const newPlaylist = await generatePlaylistFromUserInput(text);
+    if (newPlaylist) {
+        setGeneratedPlaylists(prev => [newPlaylist, ...prev]);
+    }
+    setIsLoading(prev => ({ ...prev, import: false }));
+    setShowImportModal(false);
+    setShowPlaylistModal(true); // Ensure the playlist modal is visible to show the new one
   };
 
   const handleSkipVibeSelection = () => {
@@ -663,15 +669,7 @@ export default function App() {
 
   if (appState === 'LOGIN') {
       return (
-        <>
-            <LoginScreen onLogin={() => setShowSpotifyLogin(true)} />
-            {showSpotifyLogin && (
-                <SpotifyLoginModal 
-                    onAuthorize={handleLogin}
-                    onClose={() => setShowSpotifyLogin(false)}
-                />
-            )}
-        </>
+        <LoginScreen onLogin={() => setAppState('VIBE_SELECT')} />
       );
   }
 
@@ -783,6 +781,21 @@ export default function App() {
             onClose={() => {
                 if(playlist.length > 0) setShowPlaylistModal(false)
             }}
+            onShowImport={() => {
+                setShowPlaylistModal(false);
+                setShowImportModal(true);
+            }}
+        />
+      )}
+
+      {showImportModal && (
+        <ImportPlaylistModal
+            onClose={() => {
+                setShowImportModal(false);
+                setShowPlaylistModal(true); // Go back to the playlist list
+            }}
+            onGenerate={handleGeneratePlaylistFromUserInput}
+            isLoading={isLoading.import}
         />
       )}
 
