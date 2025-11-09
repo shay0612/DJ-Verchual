@@ -1,8 +1,77 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Song, DjTransitionResponse } from '../types';
-import { SOUND_EFFECTS } from '../constants';
+import { Song, DjTransitionResponse, SpotifyPlaylist } from '../types';
+import { SOUND_EFFECTS, MOCK_SPOTIFY_PLAYLISTS } from '../constants';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+
+interface GeneratedPlaylist {
+    name: string;
+    songs: { title: string, artist: string }[];
+}
+  
+export const generatePlaylistsFromVibe = async (vibe: string): Promise<SpotifyPlaylist[]> => {
+    try {
+      const prompt = `You are a world-class DJ and music curator. A user wants to start a party and has described the vibe as: "${vibe}".
+      
+      Your task is to generate 5 diverse but fitting playlist suggestions for this party.
+      For each playlist, provide a creative name and a list of 5 to 8 iconic songs (title and artist) that perfectly match the playlist's theme and the overall party vibe.
+      
+      Return your response as a JSON array.`;
+  
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: {
+                  type: Type.STRING,
+                  description: 'The creative name of the playlist.'
+                },
+                songs: {
+                  type: Type.ARRAY,
+                  description: 'A list of songs in the playlist.',
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      title: { type: Type.STRING },
+                      artist: { type: Type.STRING }
+                    },
+                    required: ['title', 'artist']
+                  }
+                }
+              },
+              required: ['name', 'songs']
+            }
+          }
+        }
+      });
+  
+      const jsonText = response.text.trim();
+      const generatedData = JSON.parse(jsonText) as GeneratedPlaylist[];
+  
+      // Transform into SpotifyPlaylist[]
+      return generatedData.map((playlist, pIndex) => ({
+        id: `gemini-pl-${pIndex}-${Date.now()}`,
+        name: playlist.name,
+        songs: playlist.songs.map((song, sIndex) => ({
+          ...song,
+          id: `gemini-song-${pIndex}-${sIndex}-${Date.now()}`,
+          albumArt: `https://picsum.photos/seed/${encodeURIComponent(song.title)}/300`,
+          duration: Math.floor(Math.random() * (240 - 180 + 1)) + 180, // Random duration 3:00-4:00
+        }))
+      }));
+  
+    } catch (error) {
+      console.error("Error generating playlists:", error);
+      // Fallback to mock data on error
+      return MOCK_SPOTIFY_PLAYLISTS;
+    }
+};
 
 export const getDjTransition = async (currentSong: Song, nextSong: Song): Promise<DjTransitionResponse> => {
   try {

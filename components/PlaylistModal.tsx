@@ -3,7 +3,7 @@ import { SpotifyPlaylist, Song } from '../types';
 
 interface PlaylistModalProps {
   playlists: SpotifyPlaylist[];
-  onSelectPlaylist: (songs: Song[]) => void;
+  onSelectPlaylist: (songs: Song[], name: string) => void;
   onClose: () => void;
 }
 
@@ -20,7 +20,7 @@ const PlaylistModal: React.FC<PlaylistModalProps> = ({ playlists, onSelectPlayli
             {playlists.map((playlist) => (
               <li
                 key={playlist.id}
-                onClick={() => onSelectPlaylist(playlist.songs)}
+                onClick={() => onSelectPlaylist(playlist.songs, playlist.name)}
                 className="flex items-center gap-4 p-3 rounded-md transition-all duration-300 bg-gray-700/50 hover:bg-purple-500/20 cursor-pointer"
               >
                 <div className="w-12 h-12 bg-gray-600 rounded-md flex items-center justify-center">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Song, MixEvent, MixEventType, SoundEffect } from './types';
-import { MOCK_SPOTIFY_PLAYLISTS, SOUND_EFFECTS } from './constants';
-import { getDjTransition, getSimilarSong, getSongFromRequest, getLyrics } from './services/geminiService';
+import { Song, MixEvent, MixEventType, SoundEffect, SpotifyPlaylist } from './types';
+import { SOUND_EFFECTS, MOCK_SPOTIFY_PLAYLISTS } from './constants';
+import { getDjTransition, getSimilarSong, getSongFromRequest, getLyrics, generatePlaylistsFromVibe } from './services/geminiService';
 
 import Header from './components/Header';
 import Deck from './components/Deck';
@@ -11,10 +11,16 @@ import SavedMixModal from './components/SavedMixModal';
 import LoginScreen from './components/LoginScreen';
 import PlaylistModal from './components/PlaylistModal';
 import LyricsModal from './components/LyricsModal';
+import SpotifyLoginModal from './components/SpotifyLoginModal';
+import VibeSelectionScreen from './components/VibeSelectionScreen';
+
+type AppState = 'LOGIN' | 'VIBE_SELECT' | 'DJ_BOOTH';
 
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [appState, setAppState] = useState<AppState>('LOGIN');
+  const [showSpotifyLogin, setShowSpotifyLogin] = useState(false);
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
+  const [generatedPlaylists, setGeneratedPlaylists] = useState<SpotifyPlaylist[]>([]);
   const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentSongIndex, setCurrentSongIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -28,7 +34,7 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [mixLog, setMixLog] = useState<MixEvent[]>([]);
   const [showMixModal, setShowMixModal] = useState(false);
-  const [isLoading, setIsLoading] = useState({ commentary: false, suggestion: false, request: false, lyrics: false });
+  const [isLoading, setIsLoading] = useState({ commentary: false, suggestion: false, request: false, lyrics: false, playlists: false });
   const [activeSoundEffect, setActiveSoundEffect] = useState<string | null>(null);
   const [playHistory, setPlayHistory] = useState<Song[]>([]);
   const [showLyricsModal, setShowLyricsModal] = useState(false);
@@ -46,11 +52,7 @@ export default function App() {
   const undoTimeoutRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // FIX: Replaced `addEventListener` with `{ once: true }` option which was causing a TypeScript error.
-  // This manual implementation achieves the same "run once" behavior and is compatible with older DOM typings.
-  // The original `removeEventListener` calls were also incorrect.
   useEffect(() => {
-    // Initialize AudioContext on the first user interaction to comply with browser autoplay policies.
     const initAudioContext = () => {
         if (!audioContextRef.current) {
             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -62,7 +64,6 @@ export default function App() {
     window.addEventListener('keydown', initAudioContext);
 
     return () => {
-        // Also remove listeners on cleanup to prevent memory leaks if component unmounts
         window.removeEventListener('click', initAudioContext);
         window.removeEventListener('keydown', initAudioContext);
         audioContextRef.current?.close().catch(console.error);
@@ -100,9 +101,8 @@ export default function App() {
     gainNode.gain.setValueAtTime(soundEffectVolume, ctx.currentTime);
     gainNode.connect(ctx.destination);
 
-    // Simple audio synthesis to create distinct sounds for different effects.
     if (effect.id === 'se3') { // Crowd Cheer (White Noise)
-        const bufferSize = ctx.sampleRate * 0.8; // 0.8 seconds
+        const bufferSize = ctx.sampleRate * 0.8; 
         const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const output = buffer.getChannelData(0);
         for (let i = 0; i < bufferSize; i++) {
@@ -267,31 +267,81 @@ export default function App() {
   };
   
   const handleLogin = () => {
-    setIsLoggedIn(true);
+    setShowSpotifyLogin(false);
+    setAppState('VIBE_SELECT');
+  };
+  
+  const handleLogout = () => {
+    // Stop any ongoing processes
+    setIsPlaying(false);
+    if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+    }
+    if (undoTimeoutRef.current) {
+        clearTimeout(undoTimeoutRef.current);
+        undoTimeoutRef.current = null;
+    }
+
+    // Reset all state to initial values
+    setAppState('LOGIN');
+    setShowSpotifyLogin(false);
+    setShowPlaylistModal(false);
+    setGeneratedPlaylists([]);
+    setPlaylist([]);
+    setCurrentSongIndex(0);
+    setProgress(0);
+    setDjCommentary("Welcome to the party! Let's get this started!");
+    setDjTransitionEffect('Crossfade');
+    setIsAutoSuggestOn(true);
+    setIsSoundEffectsOn(true);
+    setSoundEffectVolume(1);
+    setIsVisualizerOn(true);
+    setIsRecording(false);
+    setMixLog([]);
+    setShowMixModal(false);
+    setIsLoading({ commentary: false, suggestion: false, request: false, lyrics: false, playlists: false });
+    setActiveSoundEffect(null);
+    setPlayHistory([]);
+    setShowLyricsModal(false);
+    setCurrentLyrics('');
+    setLastRemovedSong(null);
+    setUploadedMix(null);
+  };
+
+  const handleGeneratePlaylists = async (vibe: string) => {
+    setIsLoading(prev => ({ ...prev, playlists: true }));
+    const playlists = await generatePlaylistsFromVibe(vibe);
+    setGeneratedPlaylists(playlists);
+    setIsLoading(prev => ({ ...prev, playlists: false }));
+    setAppState('DJ_BOOTH');
     setShowPlaylistModal(true);
   };
 
-  const handleSelectPlaylist = (songs: Song[]) => {
+  const handleSkipVibeSelection = () => {
+    setGeneratedPlaylists(MOCK_SPOTIFY_PLAYLISTS);
+    setAppState('DJ_BOOTH');
+    setShowPlaylistModal(true);
+  };
+
+  const handleSelectPlaylist = (songs: Song[], playlistName: string) => {
     clearUndoState();
     setPlaylist(songs);
     setCurrentSongIndex(0);
     setProgress(0);
     setIsPlaying(false);
     setPlayHistory([]);
-    setDjCommentary(`Kicking things off with a banger from the "${MOCK_SPOTIFY_PLAYLISTS.find(p => p.songs === songs)?.name}" playlist!`);
+    setDjCommentary(`Kicking things off with a banger from the "${playlistName}" playlist!`);
     setShowPlaylistModal(false);
   };
 
   const handleReorderPlaylist = useCallback((reorderedSongs: Song[]) => {
       clearUndoState();
-      // The reordered list is given with the current song at the top.
-      // We can just set this as the new playlist and reset the index to 0.
       setPlaylist(reorderedSongs);
       setCurrentSongIndex(0);
   }, [clearUndoState]);
 
   const handleRemoveSong = useCallback((songId: string) => {
-    // Clear any previous undo timeout before creating a new one
     if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
 
     const songIndex = playlist.findIndex(s => s.id === songId);
@@ -305,7 +355,7 @@ export default function App() {
         
         undoTimeoutRef.current = window.setTimeout(() => {
             setLastRemovedSong(null);
-        }, 5000); // 5 seconds to undo
+        }, 5000); 
     }
   }, [playlist, logEvent]);
   
@@ -359,7 +409,7 @@ export default function App() {
                 events.push({
                     type: typeStr as MixEventType,
                     content: contentStr.trim(),
-                    timestamp: new Date(), // Timestamp from file is for display only
+                    timestamp: new Date(),
                 });
             }
         }
@@ -380,23 +430,44 @@ export default function App() {
           }
       };
       reader.readAsText(file);
-      event.target.value = ''; // Allow re-uploading the same file
+      event.target.value = '';
   };
 
   const handleUploadClick = () => {
       fileInputRef.current?.click();
   };
 
-  if (!isLoggedIn) {
-      return <LoginScreen onLogin={handleLogin} />;
+  if (appState === 'LOGIN') {
+      return (
+        <>
+            <LoginScreen onLogin={() => setShowSpotifyLogin(true)} />
+            {showSpotifyLogin && (
+                <SpotifyLoginModal 
+                    onAuthorize={handleLogin}
+                    onClose={() => setShowSpotifyLogin(false)}
+                />
+            )}
+        </>
+      );
+  }
+
+  if (appState === 'VIBE_SELECT') {
+    return (
+        <VibeSelectionScreen 
+            onGenerate={handleGeneratePlaylists}
+            isLoading={isLoading.playlists}
+            onSkip={handleSkipVibeSelection}
+        />
+    );
   }
 
   return (
     <div className="bg-gray-900 text-white min-h-screen font-sans">
       <Header 
-        isLoggedIn={isLoggedIn} 
+        isLoggedIn={appState === 'DJ_BOOTH'}
         onChangePlaylist={() => setShowPlaylistModal(true)} 
         onUploadMix={handleUploadClick}
+        onLogout={handleLogout}
       />
        <input
         type="file"
@@ -470,7 +541,7 @@ export default function App() {
 
       {showPlaylistModal && (
         <PlaylistModal 
-            playlists={MOCK_SPOTIFY_PLAYLISTS} 
+            playlists={generatedPlaylists} 
             onSelectPlaylist={handleSelectPlaylist}
             onClose={() => {
                 if(playlist.length > 0) setShowPlaylistModal(false)
