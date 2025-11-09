@@ -4,12 +4,14 @@ export interface Song {
   artist: string;
   albumArt: string;
   duration: number; // in seconds
+  audioUrl: string;
 }
 
 export interface SoundEffect {
   id: string;
   name: string;
   emoji: string;
+  audioBuffer?: ArrayBuffer;
 }
 
 export enum MixEventType {

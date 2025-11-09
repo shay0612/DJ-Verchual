@@ -1,5 +1,5 @@
 import React from 'react';
-import { MixEvent, MixEventType } from '../types';
+import { MixEvent, MixEventType } from '../types.ts';
 
 interface SavedMixModalProps {
   log: MixEvent[];

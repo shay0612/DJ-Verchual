@@ -1,6 +1,6 @@
 import React from 'react';
-import { Song } from '../types';
-import { LoadingIcon } from '../constants';
+import { Song } from '../types.ts';
+import { LoadingIcon } from '../constants.tsx';
 
 interface LyricsModalProps {
   song: Song;

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Song } from '../types';
+import { Song } from '../types.ts';
 
 interface PlaylistProps {
   songs: Song[];
@@ -45,6 +45,7 @@ const Playlist: React.FC<PlaylistProps> = ({ songs, currentSongId, onReorder, on
   // Swipe state
   const [swipeState, setSwipeState] = useState<{ id: string; x: number; isAnimating: boolean } | null>(null);
   const pointerStartRef = useRef<{ x: number } | null>(null);
+  const SWIPE_THRESHOLD = -80;
 
 
   const displaySongs = useMemo(() => {
@@ -75,12 +76,12 @@ const Playlist: React.FC<PlaylistProps> = ({ songs, currentSongId, onReorder, on
   };
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
-    if (swipeState) return;
     dragItem.current = index;
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', ''); // For Firefox compatibility
   };
   
-  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>, index: number) => {
+  const handleDragEnter = (e: React.DragEvent<HTMLLIElement>, index: number) => {
     e.preventDefault();
     if (dragItem.current === index || index === 0) return;
     dragOverItem.current = index;
@@ -111,8 +112,8 @@ const Playlist: React.FC<PlaylistProps> = ({ songs, currentSongId, onReorder, on
     setDragOverIndex(null);
   };
 
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, songId: string, isCurrent: boolean) => {
-    if (isCurrent || isReorderingDisabled || dragItem.current !== null) return;
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, songId: string) => {
+    if (dragItem.current !== null) return;
     pointerStartRef.current = { x: e.clientX };
     setSwipeState({ id: songId, x: 0, isAnimating: false });
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -128,7 +129,6 @@ const Playlist: React.FC<PlaylistProps> = ({ songs, currentSongId, onReorder, on
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
       if (!pointerStartRef.current || !swipeState) return;
       
-      const SWIPE_THRESHOLD = -80; // px
       if (swipeState.x < SWIPE_THRESHOLD) {
           // Animate out and remove
           setSwipeState({ ...swipeState, x: -e.currentTarget.offsetWidth, isAnimating: true });
@@ -209,7 +209,12 @@ const Playlist: React.FC<PlaylistProps> = ({ songs, currentSongId, onReorder, on
 
       <div className="overflow-y-auto">
         {activeView === 'queue' ? (
-            <ul className="space-y-3" onDragLeave={handleDragLeave}>
+            <ul 
+                className="space-y-3" 
+                onDragLeave={handleDragLeave} 
+                onDrop={!isReorderingDisabled ? handleDrop : undefined}
+                onDragOver={(e) => e.preventDefault()}
+            >
                 {filteredSongs.map((song) => {
                     const originalIndex = displaySongs.findIndex(s => s.id === song.id);
                     const isCurrent = originalIndex === 0;
@@ -217,49 +222,73 @@ const Playlist: React.FC<PlaylistProps> = ({ songs, currentSongId, onReorder, on
                     const isBeingSwiped = swipeState?.id === song.id;
                     const translateX = isBeingSwiped ? swipeState.x : 0;
                     const transition = isBeingSwiped && swipeState.isAnimating ? 'transform 0.2s ease-out' : 'none';
+                    const swipeProgress = isBeingSwiped ? Math.min(Math.abs(swipeState.x) / Math.abs(SWIPE_THRESHOLD), 1) : 0;
 
                     return (
                     <li
                         key={song.id}
-                        className={`relative rounded-md overflow-hidden ${dragItem.current === originalIndex ? 'opacity-50' : ''}`}
+                        onDragEnter={!isReorderingDisabled && !isCurrent ? (e) => handleDragEnter(e, originalIndex) : undefined}
+                        onDragOver={(e) => e.preventDefault()}
+                        className={`relative rounded-md overflow-hidden transition-opacity ${dragItem.current === originalIndex ? 'opacity-50' : ''}`}
+                        style={{
+                            backgroundColor: isBeingSwiped ? `rgba(220, 38, 38, ${swipeProgress * 0.9})` : 'transparent', // Tailwind red-600
+                            transition: isBeingSwiped && swipeState.isAnimating ? 'background-color 0.2s ease-out, opacity 0.2s' : 'opacity 0.2s'
+                        }}
                     >
-                        <div className="absolute inset-0 bg-red-600 flex items-center justify-end px-6 rounded-md">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                         <div className="absolute inset-0 flex items-center justify-end px-6 pointer-events-none">
+                            <svg 
+                                style={{ 
+                                    opacity: swipeProgress, 
+                                    transform: `scale(${swipeProgress})`,
+                                    transition: isBeingSwiped && swipeState.isAnimating ? 'opacity 0.2s ease-out, transform 0.2s ease-out' : 'none'
+                                }}
+                                xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                         </div>
-
+                        {dragOverIndex === originalIndex && <div className="absolute top-0 left-0 right-0 h-1 bg-cyan-400 rounded-full" />}
                         <div
-                            style={{ transform: `translateX(${translateX}px)`, transition, touchAction: isReorderingDisabled || isCurrent ? 'auto' : 'pan-y' }}
-                            onPointerDown={(e) => handlePointerDown(e, song.id, isCurrent)}
-                            onPointerMove={handlePointerMove}
-                            onPointerUp={handlePointerUp}
-                            onPointerCancel={handlePointerUp}
-                            draggable={!isReorderingDisabled && !isCurrent && !swipeState}
-                            onDragStart={!isReorderingDisabled && !isCurrent ? (e) => handleDragStart(e, originalIndex) : undefined}
-                            onDragEnter={!isReorderingDisabled && !isCurrent ? (e) => handleDragEnter(e, originalIndex) : undefined}
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={!isReorderingDisabled ? handleDrop : undefined}
-                            onDragEnd={!isReorderingDisabled ? handleDragEnd : undefined}
-                            className={`relative flex items-center gap-4 p-2 rounded-md transition-all duration-300
-                            ${ isCurrent ? 'bg-purple-500/20 border-l-4 border-purple-500' : 'bg-gray-700/50' }
-                            ${ !isReorderingDisabled && !isCurrent && !swipeState ? 'cursor-grab' : '' }
+                            style={{ transform: `translateX(${translateX}px)`, transition }}
+                            onPointerDown={isCurrent || isReorderingDisabled ? undefined : (e) => handlePointerDown(e, song.id)}
+                            onPointerMove={isCurrent || isReorderingDisabled ? undefined : handlePointerMove}
+                            onPointerUp={isCurrent || isReorderingDisabled ? undefined : handlePointerUp}
+                            onPointerCancel={isCurrent || isReorderingDisabled ? undefined : handlePointerUp}
+                            className={`relative flex items-center gap-2 rounded-md transition-all duration-300
+                            ${ isCurrent ? 'bg-purple-500/20' : 'bg-gray-700/50' }
                             `}
                         >
-                            {dragOverIndex === originalIndex && <div className="absolute top-0 left-0 right-0 h-1 bg-cyan-400 rounded-full" />}
-                            <img src={song.albumArt} alt={song.title} className="w-12 h-12 rounded-md object-cover" />
-                            <div className="flex-1 overflow-hidden">
-                                <p className={`font-semibold truncate ${isCurrent ? 'text-white' : 'text-gray-300'}`}>
-                                    <Highlight text={song.title} highlight={searchTerm} />
-                                </p>
-                                <p className="text-sm text-gray-400 truncate">
-                                    <Highlight text={song.artist} highlight={searchTerm} />
-                                </p>
+                            {!isCurrent && !isReorderingDisabled ? (
+                                <div
+                                    draggable
+                                    onDragStart={(e) => { e.stopPropagation(); handleDragStart(e, originalIndex); }}
+                                    onDragEnd={(e) => { e.stopPropagation(); handleDragEnd(); }}
+                                    onPointerDown={(e) => e.stopPropagation()} // Prevents swipe from starting
+                                    className="cursor-grab p-3 text-gray-500 hover:text-white touch-none"
+                                    aria-label="Drag to reorder"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16" />
+                                    </svg>
+                                </div>
+                            ) : (
+                                <div className="w-11 h-11 flex-shrink-0" /> // Placeholder for alignment
+                            )}
+                            
+                            <div className={`flex-1 flex items-center gap-4 p-2 pl-0 ${isCurrent ? 'border-l-4 border-purple-500' : ''}`}>
+                                <img src={song.albumArt} alt={song.title} className="w-12 h-12 rounded-md object-cover flex-shrink-0" />
+                                <div className="flex-1 overflow-hidden">
+                                    <p className={`font-semibold truncate ${isCurrent ? 'text-white' : 'text-gray-300'}`}>
+                                        <Highlight text={song.title} highlight={searchTerm} />
+                                    </p>
+                                    <p className="text-sm text-gray-400 truncate">
+                                        <Highlight text={song.artist} highlight={searchTerm} />
+                                    </p>
+                                </div>
+                                <span className="text-sm text-gray-400 px-2">{formatTime(song.duration)}</span>
+                                {isCurrent && <span className="text-xs font-bold text-cyan-400 animate-pulse mr-2">PLAYING</span>}
                             </div>
-                            <span className="text-sm text-gray-400">{formatTime(song.duration)}</span>
-                            {isCurrent && <span className="text-xs font-bold text-cyan-400 animate-pulse ml-2">PLAYING</span>}
-                            {dragOverIndex === originalIndex && <div className="absolute bottom-0 left-0 right-0 h-1 bg-cyan-400 rounded-full" />}
                         </div>
+                        {dragOverIndex === originalIndex && <div className="absolute bottom-0 left-0 right-0 h-1 bg-cyan-400 rounded-full" />}
                     </li>
                     )
                 })}

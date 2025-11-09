@@ -2,20 +2,28 @@ import React, { useRef, useEffect } from 'react';
 
 interface VisualizerProps {
   isPlaying: boolean;
+  audioContext: AudioContext;
+  sourceNode: MediaElementAudioSourceNode;
 }
 
-const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
+const Visualizer: React.FC<VisualizerProps> = ({ isPlaying, audioContext, sourceNode }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !audioContext || !sourceNode) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    sourceNode.connect(analyser);
+
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    
     let animationFrameId: number;
-    const numBars = 64;
     
     const resizeCanvas = () => {
         if(canvas.parentElement) {
@@ -28,26 +36,27 @@ const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
     resizeCanvas();
 
     const draw = () => {
+      animationFrameId = requestAnimationFrame(draw);
+      
+      analyser.getByteFrequencyData(dataArray);
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const barWidth = canvas.width / numBars;
+      const barWidth = (canvas.width / bufferLength) * 1.5;
+      let barHeight;
+      let x = 0;
       
       const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
       gradient.addColorStop(0, '#22d3ee'); // cyan-400
       gradient.addColorStop(1, '#a855f7'); // purple-500
       ctx.fillStyle = gradient;
 
-      for (let i = 0; i < numBars; i++) {
-        const barHeight = isPlaying
-          ? (Math.sin(Date.now() * 0.005 + i * 0.2) + 1) * (canvas.height / 4) + Math.random() * (canvas.height / 3)
-          : 5 + Math.sin(Date.now() * 0.001 + i * 0.2) * 2;
+      for (let i = 0; i < bufferLength; i++) {
+        barHeight = dataArray[i] * (canvas.height / 255);
         
-        const x = i * barWidth;
-        const y = canvas.height - barHeight;
+        ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
         
-        ctx.fillRect(x, y, barWidth - 2, barHeight);
+        x += barWidth + 1;
       }
-      
-      animationFrameId = requestAnimationFrame(draw);
     };
 
     draw();
@@ -55,8 +64,15 @@ const Visualizer: React.FC<VisualizerProps> = ({ isPlaying }) => {
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', resizeCanvas);
+      // It is important to not disconnect the sourceNode itself, as it's shared.
+      // We assume the analyser will be garbage collected.
+      try {
+        sourceNode.disconnect(analyser);
+      } catch (e) {
+        // This can throw an error if the node is already disconnected, which is fine.
+      }
     };
-  }, [isPlaying]);
+  }, [isPlaying, audioContext, sourceNode]);
 
   return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full z-0 opacity-25" />;
 };

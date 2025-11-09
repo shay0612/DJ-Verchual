@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LoadingIcon } from '../constants';
+import { LoadingIcon } from '../constants.tsx';
 
 interface VibeSelectionScreenProps {
   onGenerate: (vibe: string) => void;

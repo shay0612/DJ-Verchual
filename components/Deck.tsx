@@ -1,11 +1,12 @@
 import React from 'react';
-import { Song } from '../types';
-import { LoadingIcon } from '../constants';
-import Visualizer from './Visualizer';
+import { Song } from '../types.ts';
+import { LoadingIcon } from '../constants.tsx';
+import Visualizer from './Visualizer.tsx';
 
 interface DeckProps {
   song: Song;
   progress: number;
+  duration: number;
   isPlaying: boolean;
   djCommentary: string;
   transitionEffect: string;
@@ -14,20 +15,37 @@ interface DeckProps {
   isVisualizerOn: boolean;
   onShowLyrics: () => void;
   isLoadingLyrics: boolean;
+  onSeek: (time: number) => void;
+  audioContext: AudioContext | null;
+  sourceNode: MediaElementAudioSourceNode | null;
 }
 
-const Deck: React.FC<DeckProps> = ({ song, progress, isPlaying, djCommentary, transitionEffect, isLoading, activeSoundEffect, isVisualizerOn, onShowLyrics, isLoadingLyrics }) => {
-  const progressPercentage = (progress / song.duration) * 100;
+const Deck: React.FC<DeckProps> = ({ 
+  song, progress, duration, isPlaying, djCommentary, transitionEffect, 
+  isLoading, activeSoundEffect, isVisualizerOn, onShowLyrics, isLoadingLyrics,
+  onSeek, audioContext, sourceNode 
+}) => {
+  const progressPercentage = duration > 0 ? (progress / duration) * 100 : 0;
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
+  
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (duration > 0) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const width = rect.width;
+        const seekTime = (clickX / width) * duration;
+        onSeek(seekTime);
+    }
+  };
 
   return (
     <div className="bg-gray-800 rounded-lg shadow-lg p-6 space-y-4 border border-gray-700 relative overflow-hidden">
-        {isVisualizerOn && <Visualizer isPlaying={isPlaying} />}
+        {isVisualizerOn && audioContext && sourceNode && <Visualizer isPlaying={isPlaying} audioContext={audioContext} sourceNode={sourceNode} />}
         {activeSoundEffect && (
             <div className="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-20">
                 <p className="text-4xl font-bold animate-ping text-yellow-300">{activeSoundEffect}</p>
@@ -64,12 +82,14 @@ const Deck: React.FC<DeckProps> = ({ song, progress, isPlaying, djCommentary, tr
                   </button>
                 </div>
                 <div className="mt-4 space-y-2">
-                    <div className="w-full bg-gray-700 rounded-full h-2">
-                        <div className="bg-cyan-500 h-2 rounded-full" style={{ width: `${progressPercentage}%` }}></div>
+                    <div onClick={handleSeek} className="w-full bg-gray-700 rounded-full h-2 cursor-pointer group">
+                        <div className="bg-cyan-500 h-2 rounded-full relative" style={{ width: `${progressPercentage}%` }}>
+                           <div className="absolute right-0 top-1/2 -mt-1 w-4 h-4 bg-white rounded-full opacity-0 group-hover:opacity-100 transform -translate-x-1/2" />
+                        </div>
                     </div>
                     <div className="flex justify-between text-sm text-gray-400">
                         <span>{formatTime(progress)}</span>
-                        <span>{formatTime(song.duration)}</span>
+                        <span>{formatTime(duration)}</span>
                     </div>
                 </div>
             </div>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { LoadingIcon } from '../constants.tsx';
 
 interface SpotifyLoginModalProps {
   onAuthorize: () => void;
@@ -8,12 +9,16 @@ interface SpotifyLoginModalProps {
 const SpotifyLoginModal: React.FC<SpotifyLoginModalProps> = ({ onAuthorize, onClose }) => {
   const [email, setEmail] = useState('dj.verchual@example.com');
   const [password, setPassword] = useState('••••••••••••');
+  const [isAuthorizing, setIsAuthorizing] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // In a real app, you'd verify credentials here.
     // For this simulation, we'll just proceed.
-    onAuthorize();
+    setIsAuthorizing(true);
+    setTimeout(() => {
+        onAuthorize();
+    }, 1500);
   };
 
   return (
@@ -33,9 +38,10 @@ const SpotifyLoginModal: React.FC<SpotifyLoginModalProps> = ({ onAuthorize, onCl
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email or username"
-                className="w-full bg-gray-800 border border-gray-600 rounded-md px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#1DB954]"
+                className="w-full bg-gray-800 border border-gray-600 rounded-md px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#1DB954] disabled:opacity-50"
                 required
                 aria-label="Email or username"
+                disabled={isAuthorizing}
               />
             </div>
             <div>
@@ -44,17 +50,29 @@ const SpotifyLoginModal: React.FC<SpotifyLoginModalProps> = ({ onAuthorize, onCl
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
-                className="w-full bg-gray-800 border border-gray-600 rounded-md px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#1DB954]"
+                className="w-full bg-gray-800 border border-gray-600 rounded-md px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#1DB954] disabled:opacity-50"
                 required
                 aria-label="Password"
+                disabled={isAuthorizing}
               />
             </div>
-            <button type="submit" className="w-full bg-[#1DB954] hover:bg-[#1ED760] text-white font-bold py-3 px-4 rounded-full text-lg transition-transform transform hover:scale-105">
-              Log In & Authorize
+            <button 
+              type="submit" 
+              className="w-full bg-[#1DB954] hover:bg-[#1ED760] text-white font-bold py-3 px-4 rounded-full text-lg transition-transform transform hover:scale-105 flex items-center justify-center disabled:opacity-75 disabled:cursor-not-allowed"
+              disabled={isAuthorizing}
+            >
+              {isAuthorizing ? (
+                <>
+                  <LoadingIcon />
+                  <span className="ml-2">Connecting...</span>
+                </>
+              ) : (
+                'Log In & Authorize'
+              )}
             </button>
           </form>
           
-          <button onClick={onClose} className="mt-4 text-gray-400 hover:text-white font-semibold">
+          <button onClick={onClose} className="mt-4 text-gray-400 hover:text-white font-semibold disabled:opacity-50" disabled={isAuthorizing}>
             Cancel
           </button>
         </div>

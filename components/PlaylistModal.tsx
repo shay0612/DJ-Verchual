@@ -1,5 +1,5 @@
 import React from 'react';
-import { SpotifyPlaylist, Song } from '../types';
+import { SpotifyPlaylist, Song } from '../types.ts';
 
 interface PlaylistModalProps {
   playlists: SpotifyPlaylist[];

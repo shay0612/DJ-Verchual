@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { SoundEffect } from '../types';
-import { LoadingIcon } from '../constants';
+import React, { useState, useRef } from 'react';
+import { SoundEffect } from '../types.ts';
+import { LoadingIcon } from '../constants.tsx';
 
 interface ControlsProps {
   isPlaying: boolean;
@@ -13,6 +13,7 @@ interface ControlsProps {
   onSoundEffectsToggle: () => void;
   soundEffectVolume: number;
   onSoundEffectVolumeChange: (volume: number) => void;
+  onUploadSoundEffect: (effectId: string, audioBuffer: ArrayBuffer) => void;
   isVisualizerOn: boolean;
   onVisualizerToggle: () => void;
   isRecording: boolean;
@@ -20,6 +21,7 @@ interface ControlsProps {
   onRequestSubmit: (request: string) => void;
   isLoading: { commentary: boolean; suggestion: boolean; request: boolean; };
   soundEffects: SoundEffect[];
+  onAddSoundEffectClick: () => void;
 }
 
 const ControlSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -36,12 +38,16 @@ const Controls: React.FC<ControlsProps> = (props) => {
         isAutoSuggestOn, onAutoSuggestToggle,
         isSoundEffectsOn, onSoundEffectsToggle,
         soundEffectVolume, onSoundEffectVolumeChange,
+        onUploadSoundEffect,
         isVisualizerOn, onVisualizerToggle,
         isRecording, onRecordToggle, 
-        onRequestSubmit, isLoading, soundEffects 
+        onRequestSubmit, isLoading, soundEffects,
+        onAddSoundEffectClick
     } = props;
 
   const [request, setRequest] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedEffectId, setSelectedEffectId] = useState<string | null>(null);
 
   const handleRequestSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,6 +56,27 @@ const Controls: React.FC<ControlsProps> = (props) => {
       setRequest('');
     }
   };
+  
+  const handleUploadClick = (effectId: string) => {
+    setSelectedEffectId(effectId);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !selectedEffectId) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const audioBuffer = e.target?.result as ArrayBuffer;
+        if (audioBuffer) {
+            onUploadSoundEffect(selectedEffectId, audioBuffer);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+    event.target.value = ''; // Reset input
+  };
+
 
   return (
     <div className="space-y-4">
@@ -72,18 +99,44 @@ const Controls: React.FC<ControlsProps> = (props) => {
 
         {/* Sound Effects */}
         <ControlSection title="Sound FX">
+             <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept="audio/*"
+                className="hidden"
+            />
             <div className={`grid grid-cols-3 gap-2 ${!isSoundEffectsOn ? 'opacity-50' : ''}`}>
                 {soundEffects.map(effect => (
-                    <button 
-                        key={effect.id} 
-                        onClick={() => onSoundEffect(effect)} 
-                        className="bg-gray-700 hover:bg-purple-600 rounded-md p-2 text-2xl transition-colors disabled:cursor-not-allowed disabled:hover:bg-gray-700"
-                        disabled={!isSoundEffectsOn}
-                        aria-label={`Play ${effect.name} sound effect`}
-                    >
-                        {effect.emoji}
-                    </button>
+                    <div key={effect.id} className="relative group">
+                        <button 
+                            onClick={() => onSoundEffect(effect)} 
+                            className="w-full bg-gray-700 hover:bg-purple-600 rounded-md p-2 text-2xl transition-colors disabled:cursor-not-allowed disabled:hover:bg-gray-700"
+                            disabled={!isSoundEffectsOn}
+                            aria-label={`Play ${effect.name} sound effect`}
+                        >
+                            {effect.emoji}
+                        </button>
+                        <button
+                            onClick={() => handleUploadClick(effect.id)}
+                            className="absolute top-0 right-0 -mt-1.5 -mr-1.5 bg-cyan-500 hover:bg-cyan-400 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity disabled:hidden flex items-center justify-center shadow-lg"
+                            disabled={!isSoundEffectsOn}
+                            aria-label={`Upload custom sound for ${effect.name}`}
+                        >
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                        </button>
+                    </div>
                 ))}
+                 <button 
+                    onClick={onAddSoundEffectClick} 
+                    className="w-full bg-gray-700/50 border-2 border-dashed border-gray-600 hover:border-cyan-500 hover:bg-gray-700 rounded-md p-2 text-2xl text-gray-500 hover:text-cyan-400 transition-colors disabled:cursor-not-allowed disabled:hover:bg-gray-700/50 disabled:hover:border-gray-600"
+                    disabled={!isSoundEffectsOn}
+                    aria-label="Add new sound effect"
+                >
+                    +
+                </button>
             </div>
             <div className={`mt-3 flex items-center gap-2 ${!isSoundEffectsOn ? 'opacity-50' : ''}`}>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

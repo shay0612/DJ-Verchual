@@ -1,6 +1,7 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
-import { Song, DjTransitionResponse, SpotifyPlaylist } from '../types';
-import { SOUND_EFFECTS, MOCK_SPOTIFY_PLAYLISTS } from '../constants';
+import { Song, DjTransitionResponse, SpotifyPlaylist } from '../types.ts';
+import { SOUND_EFFECTS, MOCK_SPOTIFY_PLAYLISTS } from '../constants.tsx';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
@@ -63,6 +64,8 @@ export const generatePlaylistsFromVibe = async (vibe: string): Promise<SpotifyPl
           id: `gemini-song-${pIndex}-${sIndex}-${Date.now()}`,
           albumArt: `https://picsum.photos/seed/${encodeURIComponent(song.title)}/300`,
           duration: Math.floor(Math.random() * (240 - 180 + 1)) + 180, // Random duration 3:00-4:00
+          // FIX: Add missing audioUrl property to satisfy the Song interface.
+          audioUrl: 'https://cdn.pixabay.com/download/audio/2023/05/18/audio_b88b773643.mp3',
         }))
       }));
   
@@ -160,6 +163,8 @@ export const getSimilarSong = async (lastSong: Song, playlist: Song[]): Promise<
       id: `gemini:${Date.now()}`,
       albumArt: `https://picsum.photos/seed/${encodeURIComponent(suggestedSong.title)}/300`,
       duration: 180, // default duration
+      // FIX: Add missing audioUrl property to satisfy the Song interface.
+      audioUrl: 'https://cdn.pixabay.com/download/audio/2023/05/18/audio_b88b773643.mp3',
     };
   } catch (error) {
     console.error("Error suggesting similar song:", error);
@@ -200,6 +205,8 @@ export const getSongFromRequest = async (request: string, playlist: Song[]): Pro
         id: `request:${Date.now()}`,
         albumArt: `https://picsum.photos/seed/${encodeURIComponent(requestedSong.title)}/300`,
         duration: 180, // default duration
+        // FIX: Add missing audioUrl property to satisfy the Song interface.
+        audioUrl: 'https://cdn.pixabay.com/download/audio/2023/05/18/audio_b88b773643.mp3',
       };
     } catch (error) {
       console.error("Error handling song request:", error);
