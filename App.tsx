@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Song, MixEvent, MixEventType, SoundEffect, SpotifyPlaylist } from './types.ts';
 import { SOUND_EFFECTS, MOCK_SPOTIFY_PLAYLISTS } from './constants.tsx';
@@ -778,9 +779,7 @@ export default function App() {
         <PlaylistModal 
             playlists={generatedPlaylists} 
             onSelectPlaylist={handleSelectPlaylist}
-            onClose={() => {
-                if(playlist.length > 0) setShowPlaylistModal(false)
-            }}
+            onClose={() => setShowPlaylistModal(false)}
             onShowImport={() => {
                 setShowPlaylistModal(false);
                 setShowImportModal(true);

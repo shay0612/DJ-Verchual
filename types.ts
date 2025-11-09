@@ -5,6 +5,7 @@ export interface Song {
   albumArt: string;
   duration: number; // in seconds
   audioUrl: string;
+  spotifyUrl: string;
 }
 
 export interface SoundEffect {

@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Song, DjTransitionResponse, SpotifyPlaylist } from '../types.ts';
-import { SOUND_EFFECTS, MOCK_SPOTIFY_PLAYLISTS } from '../constants.tsx';
+import { SOUND_EFFECTS, MOCK_SPOTIFY_PLAYLISTS, ROYALTY_FREE_AUDIO_URLS } from '../constants.tsx';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
@@ -8,6 +8,15 @@ interface GeneratedPlaylist {
     name: string;
     songs: { title: string, artist: string }[];
 }
+
+const createSongObject = (songData: { title: string, artist: string }, idPrefix: string, index: number): Song => ({
+    ...songData,
+    id: `${idPrefix}-${index}-${Date.now()}`,
+    albumArt: `https://source.unsplash.com/300x300/?music,${encodeURIComponent(songData.title)}`,
+    duration: Math.floor(Math.random() * (240 - 180 + 1)) + 180, // Random duration 3:00-4:00
+    audioUrl: ROYALTY_FREE_AUDIO_URLS[Math.floor(Math.random() * ROYALTY_FREE_AUDIO_URLS.length)],
+    spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(songData.title + ' ' + songData.artist)}`,
+});
   
 export const generatePlaylistsFromVibe = async (vibe: string): Promise<SpotifyPlaylist[]> => {
     try {
@@ -58,13 +67,7 @@ export const generatePlaylistsFromVibe = async (vibe: string): Promise<SpotifyPl
       return generatedData.map((playlist, pIndex) => ({
         id: `gemini-pl-${pIndex}-${Date.now()}`,
         name: playlist.name,
-        songs: playlist.songs.map((song, sIndex) => ({
-          ...song,
-          id: `gemini-song-${pIndex}-${sIndex}-${Date.now()}`,
-          albumArt: `https://picsum.photos/seed/${encodeURIComponent(song.title)}/300`,
-          duration: Math.floor(Math.random() * (240 - 180 + 1)) + 180, // Random duration 3:00-4:00
-          audioUrl: 'https://cdn.pixabay.com/download/audio/2023/05/18/audio_b88b773643.mp3',
-        }))
+        songs: playlist.songs.map((song, sIndex) => createSongObject(song, `gemini-song-${pIndex}`, sIndex))
       }));
   
     } catch (error) {
@@ -133,13 +136,7 @@ export const generatePlaylistFromUserInput = async (userInput: string): Promise<
         const newPlaylist: SpotifyPlaylist = {
             id: `imported-${Date.now()}`,
             name: parsedData.playlistName,
-            songs: parsedData.songs.map((song, index) => ({
-                ...song,
-                id: `imported-song-${index}-${Date.now()}`,
-                albumArt: `https://picsum.photos/seed/${encodeURIComponent(song.title)}/300`,
-                duration: Math.floor(Math.random() * (240 - 180 + 1)) + 180,
-                audioUrl: 'https://cdn.pixabay.com/download/audio/2023/05/18/audio_b88b773643.mp3',
-            }))
+            songs: parsedData.songs.map((song, index) => createSongObject(song, 'imported-song', index))
         };
         return newPlaylist;
 
@@ -232,13 +229,8 @@ export const getSimilarSong = async (lastSong: Song, playlist: Song[]): Promise<
     const jsonText = response.text.trim();
     const suggestedSong = JSON.parse(jsonText) as { title: string; artist: string };
     
-    return {
-      ...suggestedSong,
-      id: `gemini:${Date.now()}`,
-      albumArt: `https://picsum.photos/seed/${encodeURIComponent(suggestedSong.title)}/300`,
-      duration: 180, // default duration
-      audioUrl: 'https://cdn.pixabay.com/download/audio/2023/05/18/audio_b88b773643.mp3',
-    };
+    return createSongObject(suggestedSong, 'gemini', 0);
+
   } catch (error) {
     console.error("Error suggesting similar song:", error);
     return null;
@@ -273,13 +265,8 @@ export const getSongFromRequest = async (request: string, playlist: Song[]): Pro
       const jsonText = response.text.trim();
       const requestedSong = JSON.parse(jsonText) as { title: string; artist: string };
       
-      return {
-        ...requestedSong,
-        id: `request:${Date.now()}`,
-        albumArt: `https://picsum.photos/seed/${encodeURIComponent(requestedSong.title)}/300`,
-        duration: 180, // default duration
-        audioUrl: 'https://cdn.pixabay.com/download/audio/2023/05/18/audio_b88b773643.mp3',
-      };
+      return createSongObject(requestedSong, 'request', 0);
+
     } catch (error) {
       console.error("Error handling song request:", error);
       return null;

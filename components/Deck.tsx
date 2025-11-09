@@ -80,6 +80,17 @@ const Deck: React.FC<DeckProps> = ({
                     )}
                     Lyrics
                   </button>
+                  <a 
+                    href={song.spotifyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 bg-green-900/50 hover:bg-green-800/80 rounded-full px-3 py-1 text-sm font-medium text-green-300 border border-green-500/30"
+                  >
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.441 14.544c-.2.312-.612.413-.924.212-2.586-1.58-5.83-1.943-9.72-1.066-.375.084-.688-.163-.772-.538-.084-.375.163-.688.538-.772 4.225-.945 7.81- .538 10.662 1.23.312.2.413.612.212.924zm.843-2.836c-.25.388-.75.513-1.138.263-2.937-1.787-7.387-2.312-10.937-1.275-.45.125-.9-.163-1.025-.613s.163-.9.613-1.025c3.95-1.125 8.788-.55 12.088 1.463.387.25.512.75.262 1.137zm.1-3.237C13.2 8.35 8.363 8.163 4.95 9.213c-.513.15-.988-.187-1.138-.7s.188-.988.7-1.138c3.812-1.162 9.2-1.362 13.562 1.1.45.263.613.825.35 1.275-.262.45-.825.613-1.275.35z" />
+                     </svg>
+                    Find on Spotify
+                  </a>
                 </div>
                 <div className="mt-4 space-y-2">
                     <div onClick={handleSeek} className="w-full bg-gray-700 rounded-full h-2 cursor-pointer group">
