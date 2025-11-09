@@ -1,0 +1,5 @@
+{
+  "name": "DJ Verchual",
+  "description": "A virtual party DJ that mixes Spotify playlists, takes requests, adds sound effects, and suggests similar songs, all powered by Gemini. Record and save your unique party mix.",
+  "requestFramePermissions": []
+}
